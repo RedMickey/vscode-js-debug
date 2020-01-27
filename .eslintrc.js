@@ -2,6 +2,7 @@ module.exports = {
   ignorePatterns: [
     '**/*.d.ts',
     'src/int-chrome/**/*.ts',
+    'src/vscode-cordova/**/*',
     'src/test/**/*.ts',
     'demos/**/*',
     '**/*.js',

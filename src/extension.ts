@@ -20,6 +20,8 @@ import { registerLongBreakpointUI } from './ui/longPredictionUI';
 import { registerNpmScriptLens } from './ui/npmScriptLens';
 import { DelegateLauncherFactory } from './targets/delegate/delegateLauncherFactory';
 
+import { CordovaDebugConfigurationProvider } from './vscode-cordova/src/configuration/cordovaConfigurationProvider';
+
 export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     registerCommand(vscode.commands, Contributions.DebugNpmScript, debugNpmScript),
@@ -35,6 +37,8 @@ export function activate(context: vscode.ExtensionContext) {
     nodeConfigProvider,
     terminalConfigProvider,
   );
+
+  const cordovaConfigProvider = new CordovaDebugConfigurationProvider(context);
 
   context.subscriptions.push(
     vscode.debug.registerDebugConfigurationProvider(
@@ -53,6 +57,10 @@ export function activate(context: vscode.ExtensionContext) {
       Contributions.TerminalDebugType,
       terminalConfigProvider,
     ),
+    vscode.debug.registerDebugConfigurationProvider(
+      Contributions.CordovaDebugType,
+      cordovaConfigProvider,
+    ),
   );
 
   const launcherDelegate = new DelegateLauncherFactory();
@@ -69,6 +77,10 @@ export function activate(context: vscode.ExtensionContext) {
     ),
     vscode.debug.registerDebugAdapterDescriptorFactory(
       Contributions.ChromeDebugType,
+      sessionManager,
+    ),
+    vscode.debug.registerDebugAdapterDescriptorFactory(
+      Contributions.CordovaDebugType,
       sessionManager,
     ),
   );

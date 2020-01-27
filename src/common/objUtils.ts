@@ -61,7 +61,7 @@ export function mapKeys<T>(
   for (const key of Object.keys(obj)) {
     const newKey = generator(key, obj[key]);
     if (newKey !== undefined) {
-      next[newKey] = obj[key];
+      next[<string>newKey] = obj[key];
     }
   }
 
@@ -177,7 +177,7 @@ export function memoize<T, R>(fn: (arg: T) => R): (arg: T) => R {
  * Debounces the function call for an interval.
  */
 export function debounce(duration: number, fn: () => void): (() => void) & { clear: () => void } {
-  let timeout: NodeJS.Timer | void;
+  let timeout: NodeJS.Timer;
   const debounced = () => {
     if (timeout !== undefined) {
       clearTimeout(timeout);

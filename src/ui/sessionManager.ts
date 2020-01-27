@@ -22,6 +22,7 @@ import { NodePathProvider } from '../targets/node/nodePathProvider';
 import { assert } from '../common/logging/logger';
 import { DelegateLauncherFactory } from '../targets/delegate/delegateLauncherFactory';
 import { TargetOrigin } from '../targets/targetOrigin';
+import { CordovaLauncher } from '../vscode-cordova/src/launchers/cordovaLauncher';
 
 export class Session implements IDisposable {
   public readonly debugSession: vscode.DebugSession;
@@ -63,6 +64,7 @@ export class Session implements IDisposable {
       new NodeAttacher(pathProvider),
       new BrowserLauncher(context.storagePath || context.extensionPath),
       new BrowserAttacher(),
+      new CordovaLauncher(),
       delegateLauncher.createLauncher(),
     ];
     this._binder = new Binder(

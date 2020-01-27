@@ -17,6 +17,8 @@ import {
   IChromeAttachConfiguration,
   ITerminalLaunchConfiguration,
   baseDefaults,
+  ICordovaLaunchConfiguration,
+  ICordovaAttachConfiguration,
 } from '../configuration';
 import { JSONSchema6 } from 'json-schema';
 import strings from './strings';
@@ -493,6 +495,91 @@ const nodeTerminalConfiguration: IDebugger<ITerminalLaunchConfiguration> = {
   },
 };
 
+const cordovaLaunchConfiguration: IDebugger<ICordovaLaunchConfiguration> = {
+  type: Contributions.CordovaDebugType,
+  request: 'launch',
+  label: refString('debug.cordova.label'),
+  configurationSnippets: [
+    {
+      label: refString('cordova.snippet.launch.label'),
+      description: refString('cordova.snippet.launch.label'),
+      body: {
+        name: 'Cordova Test Android emul launch',
+        type: Contributions.CordovaDebugType,
+        request: 'launch',
+        platform: 'android',
+        target: 'emulator',
+        sourceMaps: true,
+        port: 9222,
+        cwd: '^\"\\${workspaceFolder}\"'
+      }
+    }
+  ],
+  configurationAttributes: {
+    ...baseConfigurationAttributes,
+    cwd: {
+      type: 'string',
+      description: refString('cordova.snippet.launch.label'),
+      default: '${workspaceFolder}',
+    },
+    platform: {
+      type: 'string',
+      description: refString('cordova.snippet.launch.label'),
+      default: ''
+    },
+    target: {
+      type: 'string',
+      description: refString('cordova.snippet.launch.label'),
+      default: 'emulator'
+    },
+    ionicLiveReload: {
+      'type': 'boolean',
+      'description': refString('cordova.snippet.launch.label'),
+      'default': false
+    },
+  }
+}
+
+const cordovaAttachConfiguration: IDebugger<ICordovaAttachConfiguration> = {
+  type: Contributions.CordovaDebugType,
+  request: 'attach',
+  label: refString('debug.cordova.label'),
+  configurationSnippets: [
+    {
+      label: refString('cordova.snippet.attach.label'),
+      description: refString('cordova.snippet.attach.label'),
+      body: {
+        name: 'Cordova Test Android emul attach',
+        type: Contributions.CordovaDebugType,
+        request: 'attach',
+        platform: 'android',
+        target: 'emulator',
+        port: 9222,
+        sourceMaps: true,
+        cwd: '^\"\\${workspaceFolder}\"'
+      }
+    }
+  ],
+  configurationAttributes: {
+    ...baseConfigurationAttributes,
+    cwd: {
+      type: 'string',
+      description: refString('cordova.snippet.launch.label'),
+      default: '${workspaceFolder}',
+    },
+    platform: {
+      type: 'string',
+      description: refString('cordova.snippet.launch.label'),
+      default: ''
+    },
+    target: {
+      type: 'string',
+      description: refString('cordova.snippet.launch.label'),
+      default: 'emulator'
+    },
+  }
+}
+
 /**
  * Shared Chrome configuration.
  */
@@ -677,6 +764,8 @@ function buildDebuggers() {
     extensionHostConfig,
     chromeLaunchConfig,
     chromeAttachConfig,
+    cordovaLaunchConfiguration,
+    cordovaAttachConfiguration,
   ];
 
   // eslint-disable-next-line

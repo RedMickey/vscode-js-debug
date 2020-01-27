@@ -19,6 +19,7 @@ import { CancellationToken } from 'vscode';
 import { NeverCancelled } from '../../common/cancellation';
 import { Dap } from '../../dap/api';
 import { ITargetOrigin } from '../targetOrigin';
+import { CordovaDebugAdapter2 } from '../../vscode-cordova/src/cordovaAttacher';
 
 const localize = nls.loadMessageBundle();
 
@@ -158,9 +159,18 @@ export class BrowserAttacher implements ILauncher {
     params: IChromeAttachConfiguration,
     cancellationToken: CancellationToken,
   ) {
+
     const browserURL = `http://${params.address}:${params.port}`;
     while (this._launchParams === params) {
       try {
+        let cordovaDebugAdapter2 = new CordovaDebugAdapter2();
+        let args = {
+          type: 'cordova',
+          target: 'emulator',
+          port: 9222,
+          cwd: 'G:\\work\\cordova\\cordova_app',
+        };
+        cordovaDebugAdapter2.attachAndroid(args);
         return await launcher.attach({ browserURL }, cancellationToken, rawTelemetryReporter);
       } catch (e) {
         if (cancellationToken.isCancellationRequested) {

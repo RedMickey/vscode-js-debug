@@ -77,6 +77,11 @@ const strings = {
     'Command to run in the launched terminal. If not provided, the terminal will open without launching a program.',
   'debug.terminal.snippet.label': 'Run "npm start" in a debug terminal',
 
+  'debug.cordova.label': 'Cordova Test Android emul launch',
+  'cordova.snippet.launch.label': 'Cordova: Run on Android test',
+
+  'cordova.snippet.attach.label': 'Cordova: Attach on Android test',
+
   'node.pauseForSourceMap.description':
     'Whether to wait for source maps to load for each incoming script. This has a performance overhead, and might be safely disabled when running off of disk, so long as `rootPath` is not disabled.',
   'node.address.description': "TCP/IP address of process to be debugged. Default is 'localhost'.",

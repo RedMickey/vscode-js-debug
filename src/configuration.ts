@@ -328,6 +328,23 @@ export interface IChromeBaseConfiguration extends IBaseConfiguration {
   server: INodeLaunchConfiguration | ITerminalLaunchConfiguration | null;
 }
 
+export interface ICordovaConfiguration extends IBaseConfiguration {
+  type: Contributions.CordovaDebugType;
+  cwd: string;
+  platform: string;
+  target: string;
+  request: 'launch' | 'attach';
+}
+
+export interface ICordovaLaunchConfiguration extends ICordovaConfiguration {
+  request: 'launch';
+  ionicLiveReload: boolean;
+}
+
+export interface ICordovaAttachConfiguration extends ICordovaConfiguration {
+  request: 'attach';
+}
+
 /**
  * Opens a debugger-enabled terminal.
  */
@@ -430,8 +447,9 @@ export type AnyNodeConfiguration =
   | ITerminalLaunchConfiguration
   | IExtensionHostConfiguration
   | ITerminalDelegateConfiguration;
+export type AnyCordovaConfiguration = ICordovaConfiguration | ICordovaLaunchConfiguration | ICordovaAttachConfiguration;
 export type AnyChromeConfiguration = IChromeAttachConfiguration | IChromeLaunchConfiguration;
-export type AnyLaunchConfiguration = AnyChromeConfiguration | AnyNodeConfiguration;
+export type AnyLaunchConfiguration = AnyChromeConfiguration | AnyNodeConfiguration | AnyCordovaConfiguration;
 export type AnyTerminalConfiguration =
   | ITerminalDelegateConfiguration
   | ITerminalLaunchConfiguration;
@@ -446,6 +464,10 @@ export type ResolvingExtensionHostConfiguration = ResolvingConfiguration<
 >;
 export type ResolvingNodeAttachConfiguration = ResolvingConfiguration<INodeAttachConfiguration>;
 export type ResolvingNodeLaunchConfiguration = ResolvingConfiguration<INodeLaunchConfiguration>;
+
+export type ResolvingCordovaLaunchConfiguration = ResolvingConfiguration<ICordovaLaunchConfiguration>;
+export type ResolvingCordovaAttachConfiguration = ResolvingConfiguration<ICordovaAttachConfiguration>;
+
 export type ResolvingTerminalDelegateConfiguration = ResolvingConfiguration<
   ITerminalDelegateConfiguration
 >;
@@ -464,7 +486,13 @@ export type AnyResolvingConfiguration =
   | ResolvingChromeConfiguration
   | ResolvingNodeAttachConfiguration
   | ResolvingNodeLaunchConfiguration
-  | ResolvingTerminalConfiguration;
+  | ResolvingTerminalConfiguration
+  | ResolvingCordovaLaunchConfiguration
+  | ResolvingCordovaAttachConfiguration;
+
+export type ResolvingCordovaConfiguration =
+  | ResolvingCordovaAttachConfiguration
+  | ResolvingCordovaLaunchConfiguration;
 
 /**
  * Where T subtypes AnyResolvingConfiguration, gets the resolved version of T.
@@ -515,6 +543,29 @@ const nodeBaseDefaults: INodeBaseConfiguration = {
   remoteRoot: null,
   autoAttachChildProcesses: true,
 };
+
+export const cordovaLaunchDefaults: ICordovaLaunchConfiguration = {
+  ...baseDefaults,
+  type: Contributions.CordovaDebugType,
+  request: 'launch',
+  port: 9222,
+  cwd: '${workspaceFolder}',
+  platform: 'android',
+  target: 'emulator',
+  sourceMaps: true,
+  ionicLiveReload: false,
+}
+
+export const cordovaAttachDefaults: ICordovaAttachConfiguration = {
+  ...baseDefaults,
+  type: Contributions.CordovaDebugType,
+  request: 'attach',
+  port: 9222,
+  cwd: '${workspaceFolder}',
+  platform: 'android',
+  target: 'emulator',
+  sourceMaps: true,
+}
 
 export const terminalBaseDefaults: ITerminalLaunchConfiguration = {
   ...nodeBaseDefaults,
@@ -613,6 +664,12 @@ export function applyChromeDefaults(config: ResolvingChromeConfiguration): AnyCh
     : { ...chromeLaunchConfigDefaults, ...config };
 }
 
+export function applyCordovaDefaults(config: ResolvingCordovaConfiguration): AnyCordovaConfiguration {
+  return config.request === 'attach'
+    ? { ...cordovaAttachDefaults, ...config }
+    : { ...cordovaLaunchDefaults, ...config };
+}
+
 export function applyExtensionHostDefaults(
   config: ResolvingExtensionHostConfiguration,
 ): IExtensionHostConfiguration {
@@ -644,6 +701,9 @@ export function applyDefaults(config: AnyResolvingConfiguration): AnyLaunchConfi
       break;
     case Contributions.TerminalDebugType:
       configWithDefaults = applyTerminalDefaults(config);
+      break;
+    case Contributions.CordovaDebugType:
+      configWithDefaults = applyCordovaDefaults(config);
       break;
     default:
       throw assertNever(config, 'Unknown config: {value}');

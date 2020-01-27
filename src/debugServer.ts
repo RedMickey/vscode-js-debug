@@ -23,6 +23,7 @@ import { ExtensionHostAttacher } from './targets/node/extensionHostAttacher';
 import * as nls from 'vscode-nls';
 import { NodePathProvider } from './targets/node/nodePathProvider';
 import { TargetOrigin } from './targets/targetOrigin';
+import { CordovaLauncher } from './vscode-cordova/src/launchers/cordovaLauncher';
 
 const localize = nls.loadMessageBundle();
 
@@ -103,6 +104,7 @@ export function startDebugServer(port: number): Promise<IDisposable> {
           ]),
           new BrowserLauncher(storagePath),
           new BrowserAttacher(),
+          new CordovaLauncher(),
         ];
 
         const binderDelegate: IBinderDelegate = {
