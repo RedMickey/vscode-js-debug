@@ -168,9 +168,9 @@ export class BrowserAttacher implements ILauncher {
           type: 'cordova',
           target: 'emulator',
           port: 9222,
-          cwd: 'G:\\work\\cordova\\cordova_app',
+          cwd: params.rootPath,
         };
-        cordovaDebugAdapter2.attachAndroid(args);
+        await cordovaDebugAdapter2.attachAndroid(args);
         return await launcher.attach({ browserURL }, cancellationToken, rawTelemetryReporter);
       } catch (e) {
         if (cancellationToken.isCancellationRequested) {
