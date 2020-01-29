@@ -1,0 +1,52 @@
+{
+    "version": "0.1.0",
+    "configurations": [
+        {
+            "name": "Launch Extension",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}" ],
+            "stopOnEntry": false,
+            "sourceMaps": true,
+            "outFiles": [
+                "${workspaceFolder}/out/**/*.js"
+            ],
+            "preLaunchTask": "gulp: build-src"
+        },
+        {
+            "name": "Launch Tests",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["${workspaceFolder}/test/testProject", "--extensionDevelopmentPath=${workspaceFolder}", "--extensionTestsPath=${workspaceFolder}/out/test" ],
+            "stopOnEntry": false,
+            "sourceMaps": true,
+            "outFiles": [
+                "${workspaceFolder}/out/**/*.js"
+            ],
+            "preLaunchTask": "gulp: prepare-integration-tests"
+        },
+        {
+            "name": "Launch debugger as server",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/out/src/debugger/debugCordova.js",
+            "runtimeArgs": ["--harmony"],
+            "stopOnEntry": false,
+            "args": [ "--server=4712" ],
+            "sourceMaps": true,
+            "outFiles": [
+                "${workspaceFolder}/out/**/*.js"
+            ],
+            "preLaunchTask": "gulp: build-src"
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Launch Extension + Debugger",
+            "configurations": ["Launch debugger as server", "Launch Extension"]
+        }
+    ]
+}
+
