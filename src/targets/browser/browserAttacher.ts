@@ -163,14 +163,30 @@ export class BrowserAttacher implements ILauncher {
     const browserURL = `http://${params.address}:${params.port}`;
     while (this._launchParams === params) {
       try {
+
         let cordovaDebugAdapter2 = new CordovaDebugAdapter2();
         let args = {
           type: 'cordova',
-          target: 'emulator',
+          target: 'device',
           port: 9222,
           cwd: params.rootPath,
         };
         await cordovaDebugAdapter2.attachAndroid(args);
+
+        /*let args2 = {
+          type: 'cordova',
+          platform: 'ios',
+          target: 'device',
+          request: 'attach',
+          port: 9220,
+          cwd: params.rootPath,
+        };
+        let waaagh = await cordovaDebugAdapter2.attachIos(args2);
+
+        console.log(waaagh);
+
+        let tpmURL = "http://localhost:" + waaagh.port;*/
+
         return await launcher.attach({ browserURL }, cancellationToken, rawTelemetryReporter);
       } catch (e) {
         if (cancellationToken.isCancellationRequested) {

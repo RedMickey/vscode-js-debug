@@ -85,6 +85,8 @@ export class BrowserLauncher implements ILauncher {
     rawTelemetryReporter: IRawTelemetryReporter,
     clientCapabilities: IDapInitializeParamsWithExtensions,
   ): Promise<launcher.ILaunchResult> {
+
+
     let executablePath: string | undefined;
     if (executable && !chromeVersions.has(executable)) {
       executablePath = executable;

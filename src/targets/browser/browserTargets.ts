@@ -166,7 +166,7 @@ export class BrowserTargetManager implements IDisposable {
     if (parentTarget) parentTarget._children.set(targetInfo.targetId, target);
 
     cdp.Target.on('attachedToTarget', async event => {
-      this._attachedToTarget(event.targetInfo, event.sessionId, event.waitingForDebugger, target);
+      this._attachedToTarget(event.targetInfo, event.sessionId, /*event.waitingForDebugger*/ true , target);
     });
     cdp.Target.on('detachedFromTarget', async event => {
       if (event.targetId) {

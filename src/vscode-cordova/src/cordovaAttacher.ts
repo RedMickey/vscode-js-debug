@@ -3,13 +3,18 @@
 
 import * as elementtree from "elementtree";
 import * as fs from "fs";
+import * as http from "http";
 import * as messaging from "./common/extensionMessaging";
 import * as path from "path";
 import * as Q from "q";
+// import * as simulate from "cordova-simulate";
 
+// import {settingsHome} from "./utils/settingsHelper";
 import {DebugProtocol} from "vscode-debugprotocol";
 import {IAttachRequestArgs, ICommonRequestArgs} from "vscode-chrome-debug-core";
-import {execCommand} from "./debugger/extension";
+import {execCommand, cordovaRunCommand} from "./debugger/extension";
+import {CordovaProjectHelper} from "./utils/cordovaProjectHelper";
+import {CordovaIosDeviceLauncher} from "./debugger/cordovaIosDeviceLauncher";
 
 const ANDROID_MANIFEST_PATH = path.join("platforms", "android", "AndroidManifest.xml");
 const ANDROID_MANIFEST_PATH_8 = path.join("platforms", "android", "app", "src", "main", "AndroidManifest.xml");
@@ -57,6 +62,31 @@ export interface ICordovaLaunchRequestArgs extends DebugProtocol.LaunchRequestAr
     env?: any;
 }
 
+export interface ISimulateTelemetryProperties {
+  platform?: string;
+  target: string;
+  port: number;
+  simulatePort?: number;
+  livereload?: boolean;
+  forceprepare?: boolean;
+}
+
+export interface IProjectType {
+  ionic: boolean;
+  ionic2: boolean;
+  ionic4: boolean;
+  meteor: boolean;
+  mobilefirst: boolean;
+  phonegap: boolean;
+  cordova: boolean;
+}
+
+export interface SimulationInfo {
+  appHostUrl: string;
+  simHostUrl: string;
+  urlRoot: string;
+}
+
 export interface ICordovaCommonRequestArgs extends ICommonRequestArgs {
     // Workaround to suit interface ICommonRequestArgs with launch.json cwd argument
     cwd?: string;
@@ -74,6 +104,9 @@ export class CordovaDebugAdapter2 {
     // Workaround to handle breakpoint location requests correctly on some platforms
 
     private outputLogger: (message: string, error?: boolean | string) => void;
+    private ionicDevServerUrls: string[];
+    // private simulateDebugHost: SocketIOClient.Socket;
+    // private attachedDeferred: Q.Deferred<void>;
 
     public constructor() {
         // Bit of a hack, but chrome-debug-adapter-core no longer provides a way to access the transformer.
@@ -268,6 +301,266 @@ export class CordovaDebugAdapter2 {
     /**
      * Initializes telemetry.
      */
+
+    public attachIos(attachArgs: ICordovaAttachRequestArgs): Q.Promise<IAttachRequestArgs> {
+        let target = attachArgs.target.toLowerCase() === "emulator" ? "emulator" : attachArgs.target;
+        let workingDirectory = attachArgs.cwd;
+        const command = CordovaProjectHelper.getCliCommand(workingDirectory);
+        // TODO add env support for attach
+        const env = CordovaProjectHelper.getEnvArgument(attachArgs);
+        return this.checkIfTargetIsiOSSimulator(target, command, env, workingDirectory).then(() => {
+            attachArgs.webkitRangeMin = attachArgs.webkitRangeMin || 9223;
+            attachArgs.webkitRangeMax = attachArgs.webkitRangeMax || 9322;
+            attachArgs.attachAttempts = attachArgs.attachAttempts || 20;
+            attachArgs.attachDelay = attachArgs.attachDelay || 1000;
+            // Start the tunnel through to the webkit debugger on the device
+
+            const retry = function<T> (func, condition, retryCount): Q.Promise<T> {
+                return CordovaDebugAdapter2.retryAsync(func, condition, retryCount, 1, attachArgs.attachDelay, "Unable to find webview");
+            };
+
+            const getBundleIdentifier = (): Q.IWhenable<string> => {
+                if (attachArgs.target.toLowerCase() === "device") {
+                    return CordovaIosDeviceLauncher.getBundleIdentifier(attachArgs.cwd)
+                        .then(CordovaIosDeviceLauncher.getPathOnDevice)
+                        .then(path.basename);
+                } else {
+                    return Q.nfcall(fs.readdir, path.join(attachArgs.cwd, "platforms", "ios", "build", "emulator")).then((entries: string[]) => {
+                        let filtered = entries.filter((entry) => /\.app$/.test(entry));
+                        if (filtered.length > 0) {
+                            return filtered[0];
+                        } else {
+                            throw new Error("Unable to find .app file");
+                        }
+                    });
+                }
+            };
+
+            const getSimulatorProxyPort = (packagePath): Q.IWhenable<{ packagePath: string; targetPort: number }> => {
+                return this.promiseGet(`http://localhost:${attachArgs.port}/json`, "Unable to communicate with ios_webkit_debug_proxy").then((response: string) => {
+                    try {
+                        let endpointsList = JSON.parse(response);
+                        let devices = endpointsList.filter((entry) =>
+                            attachArgs.target.toLowerCase() === "device" ? entry.deviceId !== "SIMULATOR"
+                                : entry.deviceId === "SIMULATOR"
+                        );
+                        let device = devices[0];
+                        // device.url is of the form 'localhost:port'
+                        return {
+                            packagePath,
+                            targetPort: parseInt(device.url.split(":")[1], 10),
+                        };
+                    } catch (e) {
+                        throw new Error("Unable to find iOS target device/simulator. Please check that \"Settings > Safari > Advanced > Web Inspector = ON\" or try specifying a different \"port\" parameter in launch.json");
+                    }
+                });
+            };
+
+            const findWebViews = ({ packagePath, targetPort }) => {
+                return retry(() =>
+                    this.promiseGet(`http://localhost:${targetPort}/json`, "Unable to communicate with target")
+                        .then((response: string) => {
+                            try {
+                                const webviewsList = JSON.parse(response);
+                                const foundWebViews = webviewsList.filter((entry) => {
+                                    if (this.ionicDevServerUrls) {
+                                        return this.ionicDevServerUrls.some(url => entry.url.indexOf(url) === 0);
+                                    } else {
+                                        return entry.url.indexOf(encodeURIComponent(packagePath)) !== -1;
+                                    }
+                                });
+                                if (!foundWebViews.length && webviewsList.length === 1) {
+                                    return {
+                                        relevantViews: webviewsList,
+                                        targetPort,
+                                    };
+                                }
+                                if (!foundWebViews.length) {
+                                    throw new Error("Unable to find target app");
+                                }
+                                return {
+                                    relevantViews: foundWebViews,
+                                    targetPort,
+                                };
+                            } catch (e) {
+                                throw new Error("Unable to find target app");
+                            }
+                        }), (result) => result.relevantViews.length > 0, 5);
+            };
+
+            const getAttachRequestArgs = (): Q.Promise<IAttachRequestArgs> =>
+                CordovaIosDeviceLauncher.startWebkitDebugProxy(attachArgs.port, attachArgs.webkitRangeMin, attachArgs.webkitRangeMax)
+                    .then(getBundleIdentifier)
+                    .then(getSimulatorProxyPort)
+                    .then(findWebViews)
+                    .then(({ relevantViews, targetPort }) => {
+                        return { port: targetPort, url: relevantViews[0].url };
+                    })
+                    .then(({ port, url }) => {
+                        const args: IAttachRequestArgs = JSON.parse(JSON.stringify(attachArgs));
+                        args.port = port;
+                        args.url = url;
+                        return args;
+                    });
+
+            return retry(getAttachRequestArgs, () => true, attachArgs.attachAttempts);
+        });
+    }
+
+        private checkIfTargetIsiOSSimulator(target: string, cordovaCommand: string, env: any, workingDirectory: string): Q.Promise<void> {
+        const simulatorTargetIsNotSupported = () => {
+            const message = "Invalid target. Please, check target parameter value in your debug configuration and make sure it's a valid iPhone device identifier. Proceed to https://aka.ms/AA3xq86 for more information.";
+            throw new Error(message);
+        };
+        if (target === "emulator") {
+            simulatorTargetIsNotSupported();
+        }
+        return cordovaRunCommand(cordovaCommand, ["emulate", "ios", "--list"], env, workingDirectory).then((output) => {
+            // Get list of emulators as raw strings
+            output[0] = output[0].replace(/Available iOS Simulators:/, "");
+
+            // Clean up each string to get real value
+            const emulators = output[0].split("\n").map((value) => {
+                let match = value.match(/(.*)(?=,)/gm);
+                if (!match) {
+                    return null;
+                }
+                return match[0].replace(/\t/, "");
+            });
+
+            return (emulators.indexOf(target) >= 0);
+        })
+        .then((result) => {
+            if (result) {
+                simulatorTargetIsNotSupported();
+            }
+        });
+    }
+
+    private promiseGet(url: string, reqErrMessage: string): Q.Promise<string> {
+      let deferred = Q.defer<string>();
+      let req = http.get(url, function(res) {
+          let responseString = "";
+          res.on("data", (data: Buffer) => {
+              responseString += data.toString();
+          });
+          res.on("end", () => {
+              deferred.resolve(responseString);
+          });
+      });
+      req.on("error", (err: Error) => {
+          deferred.reject(err);
+      });
+      return deferred.promise;
+  }
+
+      /*private launchSimulate(launchArgs: ICordovaLaunchRequestArgs, projectType: IProjectType): Q.Promise<any> {
+        let simulateTelemetryPropts: ISimulateTelemetryProperties = {
+            platform: launchArgs.platform,
+            target: launchArgs.target,
+            port: launchArgs.port,
+            simulatePort: launchArgs.simulatePort,
+        };
+
+        if (launchArgs.hasOwnProperty("livereload")) {
+            simulateTelemetryPropts.livereload = launchArgs.livereload;
+        }
+
+        if (launchArgs.hasOwnProperty("forceprepare")) {
+            simulateTelemetryPropts.forceprepare = launchArgs.forceprepare;
+        }
+
+        let messageSender = new messaging.ExtensionMessageSender(launchArgs.cwd);
+        let simulateInfo: SimulationInfo;
+
+        let launchSimulate = Q.resolve(void 0)
+            .then(() => {
+                let simulateOptions = this.convertLaunchArgsToSimulateArgs(launchArgs);
+                return messageSender.sendMessage(messaging.ExtensionMessage.START_SIMULATE_SERVER, [launchArgs.cwd, simulateOptions, projectType]);
+            }).then((simInfo: SimulationInfo) => {
+                simulateInfo = simInfo;
+                return this.connectSimulateDebugHost(simulateInfo);
+            }).then(() => {
+                launchArgs.userDataDir = path.join(settingsHome(), CordovaDebugAdapter.CHROME_DATA_DIR);
+                return messageSender.sendMessage(messaging.ExtensionMessage.LAUNCH_SIM_HOST, [launchArgs.target]);
+            }).then(() => {
+                // Launch Chrome and attach
+                launchArgs.url = simulateInfo.appHostUrl;
+                this.outputLogger("Attaching to app");
+
+                return this.launchChrome(launchArgs);
+            }).catch((e) => {
+                throw e;
+            }).then(() => void 0);
+
+        return Q.all([launchSimulate]);
+    }
+
+    private convertLaunchArgsToSimulateArgs(launchArgs: ICordovaLaunchRequestArgs): simulate.SimulateOptions {
+        let result: simulate.SimulateOptions = {};
+
+        result.platform = launchArgs.platform;
+        result.target = launchArgs.target;
+        result.port = launchArgs.simulatePort;
+        result.livereload = launchArgs.livereload;
+        result.forceprepare = launchArgs.forceprepare;
+        result.simulationpath = launchArgs.simulateTempDir;
+        result.corsproxy = launchArgs.corsproxy;
+
+        return result;
+    }
+
+    private connectSimulateDebugHost(simulateInfo: SimulationInfo): Q.Promise<void> {
+        // Connect debug-host to cordova-simulate
+        let viewportResizeFailMessage = "Viewport resizing failed. Please try again.";
+        let simulateDeferred: Q.Deferred<void> = Q.defer<void>();
+
+        let simulateConnectErrorHandler = (err: any): void => {
+            this.outputLogger(`Error connecting to the simulated app.`);
+            simulateDeferred.reject(err);
+        };
+
+        this.simulateDebugHost = io.connect(simulateInfo.urlRoot);
+        this.simulateDebugHost.on("connect_error", simulateConnectErrorHandler);
+        this.simulateDebugHost.on("connect_timeout", simulateConnectErrorHandler);
+        this.simulateDebugHost.on("connect", () => {
+            this.simulateDebugHost.on("resize-viewport", (data: simulate.ResizeViewportData) => {
+                this.changeSimulateViewport(data).catch(() => {
+                    this.outputLogger(viewportResizeFailMessage, true);
+                }).done();
+            });
+            this.simulateDebugHost.on("reset-viewport", () => {
+                this.resetSimulateViewport().catch(() => {
+                    this.outputLogger(viewportResizeFailMessage, true);
+                }).done();
+            });
+            this.simulateDebugHost.emit("register-debug-host", { handlers: ["reset-viewport", "resize-viewport"] });
+            simulateDeferred.resolve(void 0);
+        });
+
+        return simulateDeferred.promise;
+    }
+
+    private resetSimulateViewport(): Q.Promise<void> {
+        return this.attachedDeferred.promise.then(() =>
+            this.chrome.Emulation.clearDeviceMetricsOverride()
+        ).then(() =>
+            this.chrome.Emulation.setEmulatedMedia({media: ""})
+        ).then(() =>
+            this.chrome.Emulation.resetPageScaleFactor()
+        );
+    }
+
+    private changeSimulateViewport(data: simulate.ResizeViewportData): Q.Promise<void> {
+        return this.attachedDeferred.promise.then(() =>
+            this.chrome.Emulation.setDeviceMetricsOverride({
+                width: data.width,
+                height: data.height,
+                deviceScaleFactor: 0,
+                mobile: true,
+            })
+        );
+    }*/
 
     private runAdbCommand(args, errorLogger): Q.Promise<string> {
         const originalPath = process.env["PATH"];

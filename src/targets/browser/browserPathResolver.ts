@@ -16,6 +16,9 @@ interface IOptions extends ISourcePathResolverOptions {
 }
 
 export class BrowserSourcePathResolver extends SourcePathResolverBase<IOptions> {
+  private _clientPathToTargetUrl = new Map<string, string>();
+  private _targetUrlToClientPath = new Map<string, string>();
+
   constructor(options: IOptions) {
     super({
       ...options,
@@ -31,7 +34,25 @@ export class BrowserSourcePathResolver extends SourcePathResolverBase<IOptions> 
     absolutePath = path.normalize(absolutePath);
     // Note: we do not check that absolutePath belongs to basePath to
     // allow source map sources reference outside of web root.
+    if (!baseUrl || !webRoot) {
+      let tmpPath = utils.absolutePathToFileUrl(absolutePath);
+      console.log(tmpPath);
+      let correctPath;
+      if (absolutePath.includes('testWorker.js')) {
+        correctPath = "file:///android_asset/www/js/testWorker.js";
+      } else if (absolutePath.includes('js2/ind.js')) {
+        correctPath = "file:///android_asset/www/js2/ind.js";
+      } else
+        correctPath = "file:///android_asset/www/js/index.js";
+
+      this._targetUrlToClientPath.set(absolutePath, correctPath);
+      this._clientPathToTargetUrl.set(correctPath, absolutePath);
+
+      return this._targetUrlToClientPath.get(absolutePath);
+    }
+
     if (!baseUrl || !webRoot) return utils.absolutePathToFileUrl(absolutePath);
+
     const relative = path.relative(webRoot, absolutePath);
     return utils.completeUrlEscapingRoot(baseUrl, utils.platformPathToUrlPath(relative));
   }
@@ -48,6 +69,20 @@ export class BrowserSourcePathResolver extends SourcePathResolverBase<IOptions> 
 
     const { baseUrl, webRoot } = this.options;
     const absolutePath = utils.isAbsolute(url) ? url : utils.fileUrlToAbsolutePath(url);
+    if (absolutePath) {
+      if (absolutePath == "/android_asset/www/js/index.js"
+      || absolutePath == "/android_asset/www/js/testWorker.js"
+      || absolutePath == "/android_asset/www/js2/ind.js"
+      ) {
+        let tpmPath = "file://" + absolutePath;
+
+        let tmpRes = this._clientPathToTargetUrl.get(tpmPath);
+        return tmpRes;
+      }
+
+      return fixDriveLetterAndSlashes(absolutePath);
+    }
+
     if (absolutePath) return fixDriveLetterAndSlashes(absolutePath);
 
     if (!webRoot) {

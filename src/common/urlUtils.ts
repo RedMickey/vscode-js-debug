@@ -208,7 +208,8 @@ export function fileUrlToAbsolutePath(urlOrPath: string): string | undefined {
 export function absolutePathToFileUrl(absolutePath: string): string | undefined {
   try {
     if (process.platform === 'win32') return 'file:///' + platformPathToUrlPath(absolutePath);
-    return 'file://' + platformPathToUrlPath(absolutePath);
+    const tmp = 'file://' + platformPathToUrlPath(absolutePath);
+    return tmp;
   } catch (e) {}
 }
 
