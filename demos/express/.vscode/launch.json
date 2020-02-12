@@ -12,6 +12,23 @@
       "server": {
         "program": "bin/www"
       }
-    }
+    },
+    {
+      "name": "Debug Android",
+      "cwd": "${workspaceFolder}",
+      "type": "reactnative",
+      "request": "launch",
+      "platform": "android"
+    },
+    {
+      "name": "Attach to Chrome",
+      "port": 13608,
+      "request": "attach",
+      "type": "pwa-chrome",
+      "webRoot": "${workspaceFolder}",
+      "server": {
+        "program": "bin/www"
+      }
+    },
   ]
 }

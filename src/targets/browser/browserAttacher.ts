@@ -22,6 +22,8 @@ import { ITargetOrigin } from '../targetOrigin';
 import { ILogger } from '../../common/logging';
 import { injectable, inject } from 'inversify';
 
+import { TestClass } from '../testClass';
+
 const localize = nls.loadMessageBundle();
 
 @injectable()
@@ -204,6 +206,10 @@ export class BrowserAttacher implements ILauncher {
 
   async restart(): Promise<void> {
     // no-op
+  }
+
+  testFunc(a: number, b: number): number {
+    return TestClass.testFunc2(a, b);
   }
 
   targetList(): ITarget[] {

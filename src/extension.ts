@@ -19,6 +19,8 @@ import { registerNpmScriptLens } from './ui/npmScriptLens';
 import { DelegateLauncherFactory } from './targets/delegate/delegateLauncherFactory';
 import { IDebugConfigurationProvider } from './ui/configuration';
 
+import { BrowserAttacher } from './targets/browser/browserAttacher';
+
 export function activate(context: vscode.ExtensionContext) {
   const services = createGlobalContainer({
     storagePath: context.storagePath || context.extensionPath,
@@ -58,6 +60,23 @@ export function activate(context: vscode.ExtensionContext) {
   registerPrettyPrintActions(context, debugSessionTracker);
   registerDebugTerminalUI(context, services.get(DelegateLauncherFactory));
   registerNpmScriptLens(context);
+
+  let startDebugFunction = function(folder: vscode.WorkspaceFolder, config: any) {
+    return vscode.debug.startDebugging(
+      folder,
+      config
+    ).then(
+      b => b,
+      err => err
+      );
+  };
+
+  let api = {
+    browserAttacher: BrowserAttacher,
+    startDebugFunction: startDebugFunction,
+  };
+
+  return api;
 }
 
 export function deactivate() {
