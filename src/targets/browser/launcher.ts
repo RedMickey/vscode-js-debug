@@ -290,12 +290,17 @@ export async function getWSEndpoint(
   browserURL: string,
   cancellationToken: CancellationToken,
 ): Promise<string> {
-  const jsonVersion = await fetchJson<{ webSocketDebuggerUrl?: string }>(
-    URL.resolve(browserURL, '/json/version'),
-    cancellationToken,
-  );
-  if (jsonVersion.webSocketDebuggerUrl) {
-    return jsonVersion.webSocketDebuggerUrl;
+  let jsonVersion;
+  try {
+    jsonVersion = await fetchJson<{ webSocketDebuggerUrl?: string }>(
+      URL.resolve(browserURL, '/json/version'),
+      cancellationToken,
+    );
+    if (jsonVersion.webSocketDebuggerUrl) {
+      return jsonVersion.webSocketDebuggerUrl;
+    }
+  } catch(err) {
+    console.log(err);
   }
 
   // Chrome its top-level debugg on /json/version, while Node does not.
@@ -365,5 +370,7 @@ async function fetchJson<T>(url: string, cancellationToken: CancellationToken): 
 
     request.on('error', reject);
     request.end();
-  }).finally(() => disposables.forEach(d => d.dispose()));
+  }).finally(() =>
+    disposables.forEach(d => d.dispose()))
+  ;
 }
